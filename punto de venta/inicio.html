@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema POS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            margin-top: 40px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        input, button, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+
+        button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .product-list {
+            margin-bottom: 20px;
+        }
+
+        .product-item {
+            margin-bottom: 10px;
+        }
+
+        .product-item input {
+            width: 60px;
+            margin-left: 10px;
+        }
+
+        .sales-list {
+            margin-top: 20px;
+        }
+
+        #ticket {
+            display: none;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        #ticket img {
+            max-width: 150px;
+            margin-bottom: 10px;
+        }
+
+        #ticket .product-list {
+            margin-top: 20px;
+        }
+
+        #ticket .product-item {
+            margin-bottom: 10px;
+        }
+
+        #ticket .total {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="loginContainer">
+        <h2>Inicio de Sesión</h2>
+        <form id="loginForm">
+            <input type="text" id="username" placeholder="Nombre de usuario" required>
+            <input type="password" id="password" placeholder="Contraseña" required>
+            <button type="submit">Iniciar Sesión</button>
+        </form>
+        <div id="loginError" class="error"></div>
+    </div>
+
+    <div class="container" id="adminContainer" style="display:none;">
+        <h2>Panel de Administración</h2>
+        <button onclick="createUser()">Crear Usuario</button>
+        <button onclick="deleteUser()">Eliminar Usuario</button>
+        <div id="userList"></div>
+        <button onclick="createProduct()">Crear Producto</button>
+        <button onclick="deleteProduct()">Eliminar Producto</button>
+        <button onclick="editProductDetails()">Editar Detalles de Producto</button>
+        <h3>Cupones de Descuento</h3>
+        <button onclick="createCoupon()">Crear Cupón</button>
+        <button onclick="deleteCoupon()">Eliminar Cupón</button>
+        <div id="couponList"></div>
+        <div id="productList"></div>
+        <h3>Ventas Registradas</h3>
+        <div id="salesList"></div>
+        <h3>Subir Logo de la Empresa</h3>
+        <input type="file" id="logoInput" onchange="uploadLogo()">
+        <img id="companyLogo" src="" alt="Logo de la Empresa" style="max-width: 150px; display:none;">
+        <button onclick="logout()">Cerrar Sesión</button>
+    </div>
+
+    <div class="container" id="employeeContainer" style="display:none;">
+        <h2>Registro de Ventas</h2>
+        <div id="productSelection"></div>
+        <h3>Total de la Compra: $<span id="totalAmount">0.00</span></h3>
+        <input type="text" id="couponCode" placeholder="Ingrese código de cupón" onchange="applyCoupon()">
+        <h3>Método de Pago</h3>
+        <select id="paymentMethod" onchange="toggleCashReceived()">
+            <option value="cash">Efectivo</option>
+            <option value="card">Tarjeta</option>
+            <option value="delivery">Delivery</option>
+        </select>
+        <div id="cashReceivedContainer" style="display: none;">
+            <input type="number" id="cashReceived" placeholder="Cantidad recibida" required>
+            <p id="changeDue" style="display: none;"></p>
+        </div>
+        <button id="completeSaleBtn" onclick="completeSale()">Completar Venta</button>
+        <div id="saleConfirmation" class="success"></div>
+        <button onclick="logout()">Cerrar Sesión</button>
+
+        <div id="ticket">
+            <h3>Ticket de Compra</h3>
+            <div id="ticketDetails"></div>
+            <button onclick="window.print()">Imprimir Ticket</button>
+        </div>
+    </div>
+
+    <script>
+        const users = [
+            { username: "admin", password: "admin", role: "admin" },
+            { username: "empleado1", password: "empleado1", role: "empleado" }
+        ];
+        const products = [];
+        const coupons = [];  
+        const sales = [];
+        let currentUserRole = '';
+        let currentUserName = '';
+        let companyLogo = '';  
+
+        document.getElementById("loginForm").addEventListener("submit", (e) => {
+            e.preventDefault();
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            const user = users.find(user => user.username === username && user.password === password);
+            if (user) {
+                currentUserName = username;
+                currentUserRole = user.role;
+                if (user.role === "admin") {
+                    document.getElementById("loginContainer").style.display = "none";
+                    document.getElementById("adminContainer").style.display = "block";
+                    renderAdminPanel();
+                } else if (user.role === "empleado") {
+                    document.getElementById("loginContainer").style.display = "none";
+                    document.getElementById("employeeContainer").style.display = "block";
+                    renderEmployeePanel();
+                }
+            } else {
+                document.getElementById("loginError").innerText = "Credenciales incorrectas";
+            }
+        });
+
+        function uploadLogo() {
+            const file = document.getElementById("logoInput").files[0];
+            const reader = new FileReader();
+            reader.onloadend = function () {
+                companyLogo = reader.result;  
+                document.getElementById("companyLogo").src = companyLogo;  
+                document.getElementById("companyLogo").style.display = "block";  
+            };
+            if (file) {
+                reader.readAsDataURL(file); 
+        }
+
+        function logout() {
+            currentUserRole = '';
+            currentUserName = '';
+            document.getElementById("loginContainer").style.display = "block";
+            document.getElementById("adminContainer").style.display = "none";
+            document.getElementById("employeeContainer").style.display = "none";
+            document.getElementById("username").value = '';
+            document.getElementById("password").value = '';
+        }
+
+        function createUser() {
+            const username = prompt("Ingrese el nombre de usuario:");
+            const password = prompt("Ingrese la contraseña:");
+            const role = prompt("Ingrese el rol (admin/empleado):");
+            if (username && password && (role === "admin" || role === "empleado")) {
+                users.push({ username, password, role });
+                alert("Usuario creado con éxito.");
+                renderAdminPanel();
+            } else {
+                alert("Datos inválidos.");
+            }
+        }
+
+        function deleteUser() {
+            const username = prompt("Ingrese el nombre del usuario a eliminar:");
+            const userIndex = users.findIndex(user => user.username === username);
+            if (userIndex !== -1) {
+                users.splice(userIndex, 1);
+                alert("Usuario eliminado.");
+                renderAdminPanel();
+            } else {
+                alert("Usuario no encontrado.");
+            }
+        }
+
+        function createProduct() {
+            const name = prompt("Ingrese el nombre del producto:");
+            const price = parseFloat(prompt("Ingrese el precio del producto:"));
+            if (name && !isNaN(price) && price > 0) {
+                products.push({ name, price });
+                alert("Producto creado.");
+                renderAdminPanel();
+            } else {
+                alert("Datos inválidos.");
+            }
+        }
+
+        function deleteProduct() {
+            const name = prompt("Ingrese el nombre del producto a eliminar:");
+            const productIndex = products.findIndex(product => product.name === name);
+            if (productIndex !== -1) {
+                products.splice(productIndex, 1);
+                alert("Producto eliminado.");
+                renderAdminPanel();
+            } else {
+                alert("Producto no encontrado.");
+            }
+        }
+
+        function editProductDetails() {
+            const name = prompt("Ingrese el nombre del producto a editar:");
+            const product = products.find(product => product.name === name);
+            if (product) {
+                const newPrice = parseFloat(prompt("Ingrese el nuevo precio del producto:"));
+                if (!isNaN(newPrice) && newPrice > 0) {
+                    product.price = newPrice;
+                    alert("Producto actualizado.");
+                    renderAdminPanel();
+                } else {
+                    alert("Precio inválido.");
+                }
+            } else {
+                alert("Producto no encontrado.");
+            }
+        }
+
+        function createCoupon() {
+            const code = prompt("Ingrese el código del cupón:");
+            const discount = parseFloat(prompt("Ingrese el descuento en porcentaje:"));
+            if (code && !isNaN(discount) && discount > 0 && discount <= 100) {
+                coupons.push({ code, discount });
+                alert("Cupón creado.");
+                renderAdminPanel();
+            } else {
+                alert("Datos inválidos.");
+            }
+        }
+
+        function deleteCoupon() {
+            const code = prompt("Ingrese el código del cupón a eliminar:");
+            const couponIndex = coupons.findIndex(coupon => coupon.code === code);
+            if (couponIndex !== -1) {
+                coupons.splice(couponIndex, 1);
+                alert("Cupón eliminado.");
+                renderAdminPanel();
+            } else {
+                alert("Cupón no encontrado.");
+            }
+        }
+
+        function renderAdminPanel() {
+
+            const productHtml = products.map(product => `
+                <div class="product-item">
+                    ${product.name} - $${product.price}
+                </div>
+            `).join('');
+            document.getElementById("productList").innerHTML = productHtml;
+
+            const userHtml = users.map(user => `
+                <div class="product-item">
+                    ${user.username} (${user.role})
+                </div>
+            `).join('');
+            document.getElementById("userList").innerHTML = userHtml;
+
+            const couponHtml = coupons.map(coupon => `
+                <div class="product-item">
+                    ${coupon.code} - ${coupon.discount}% de descuento
+                </div>
+            `).join('');
+            document.getElementById("couponList").innerHTML = couponHtml;
+
+            const saleHtml = sales.map((sale, index) => `
+                <div class="product-item">
+                    Venta #${index + 1} - Total: $${sale.total.toFixed(2)}
+                </div>
+            `).join('');
+            document.getElementById("salesList").innerHTML = saleHtml;
+        }
+
+        function renderEmployeePanel() {
+            let productHtml = `<h3>Productos Disponibles</h3><div class="product-list">`;
+            products.forEach(product => {
+                productHtml += `
+                    <div class="product-item">
+                        ${product.name} - $${product.price}
+                        <input type="number" id="quantity-${product.name}" value="1" min="1" />
+                    </div>
+                `;
+            });
+            productHtml += `</div>`;
+            document.getElementById("productSelection").innerHTML = productHtml;
+            updateTotal();  
+        }
+
+        function updateTotal() {
+            let total = 0;
+            products.forEach(product => {
+                const quantity = parseInt(document.getElementById(`quantity-${product.name}`).value) || 0;
+                total += product.price * quantity;
+            });
+            document.getElementById("totalAmount").innerText = total.toFixed(2);
+        }
+
+        function applyCoupon() {
+            const couponCode = document.getElementById("couponCode").value;
+            const coupon = coupons.find(coupon => coupon.code === couponCode);
+            if (coupon) {
+                alert(`Cupón aplicado. Descuento: ${coupon.discount}%`);
+                const total = parseFloat(document.getElementById("totalAmount").innerText);
+                const discountAmount = total * (coupon.discount / 100);
+                const newTotal = total - discountAmount;
+                document.getElementById("totalAmount").innerText = newTotal.toFixed(2);
+            } else {
+                alert("Cupón no válido.");
+            }
+        }
+
+        function completeSale() {
+            const paymentMethod = document.getElementById("paymentMethod").value;
+            const cashReceived = document.getElementById("cashReceived").value ? parseFloat(document.getElementById("cashReceived").value) : 0;
+            const total = parseFloat(document.getElementById("totalAmount").innerText);
+            
+            const saleProducts = products.map(product => {
+                const quantity = parseInt(document.getElementById(`quantity-${product.name}`).value) || 0;
+                return {
+                    name: product.name,
+                    price: product.price,
+                    quantity: quantity
+                };
+            }).filter(product => product.quantity > 0);
+
+            const sale = {
+                products: saleProducts,
+                total: total,
+                paymentMethod: paymentMethod,
+                cashReceived: cashReceived,
+            };
+
+            sales.push(sale);
+            renderSaleConfirmation(sale);
+            renderTicket(sale);  
+        }
+
+        function renderSaleConfirmation(sale) {
+            document.getElementById("saleConfirmation").textContent = `Venta completada por $${sale.total.toFixed(2)}.`;
+        }
+
+        function renderTicket(sale) {
+            const ticketDetails = `
+                <img src="${companyLogo}" alt="Logo de la Empresa">
+                <div class="product-list">
+                  ${sale.products.map(product => `
+                    <div class="product-item">${product.name} (x${product.quantity}) - $${(product.price * product.quantity).toFixed(2)}</div>
+                  `).join('')}
+                </div>
+                <div class="total">Total: $${sale.total.toFixed(2)}</div>
+            `;
+            document.getElementById("ticketDetails").innerHTML = ticketDetails;
+            document.getElementById("ticket").style.display = "block";  
+        }
+    </script>
+</body>
+</html>
